@@ -27,43 +27,28 @@ class AudioDecoder {
 private:
     AVCodec *codec;
     AVCodecContext *context;
-    FILE *audioFile;
+    FILE *audioFile, *outfile;
     AVFrame *decoded_frame;
     AVCodecParserContext *parser;
     AVPacket *pkt;
-    AVFormatContext* format;
-    std::string filename;
 
     uint8_t *data;
     uint8_t *inbuf;
 
-    size_t dataSize;
-    int ret;
-
-    void decode(AVCodecContext *dec_ctx, AVPacket *dec_pkt, AVFrame *frame, std::vector<uint8_t> *dec_buffer);
+    void decodePacket();
 
     AVCodec* findCodec();
 
 public:
-    std::vector<uint8_t> *outBuffer;
+    std::vector<uint8_t> outBuffer;
 
-    explicit AudioDecoder(const std::string& fileType);
+    AudioDecoder();
 
     void decode();
 
-    ~AudioDecoder() {
-        pkt->data = nullptr;
-        pkt->size = 0;
-        decode(context, pkt, decoded_frame, outBuffer);
-        delete(outBuffer);
+    ~AudioDecoder();
 
-        fclose(audioFile);
-
-        avcodec_free_context(&context);
-        av_parser_close(parser);
-        av_frame_free(&decoded_frame);
-        av_packet_free(&pkt);
-    }
+    std::string filename;
 };
 
 #endif //MUSICNOISECOMBINE_MAIN_H
