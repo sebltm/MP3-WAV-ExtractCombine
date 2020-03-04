@@ -3,10 +3,6 @@ project(MusicNoiseCombine)
 
 set(CMAKE_CXX_STANDARD 14)
 
-add_executable(MusicNoiseCombine main.cpp main.h audioDecoder.cpp)
+add_executable(MusicNoiseCombine main.cpp main.h audioDecoderMP3.cpp audioDecoderWAV.cpp)
 
-target_link_libraries(MusicNoiseCombine portaudio)
-target_link_libraries(MusicNoiseCombine avformat)
-target_link_libraries(MusicNoiseCombine avcodec)
-target_link_libraries(MusicNoiseCombine avutil)
-target_link_libraries(MusicNoiseCombine IO)
+target_link_libraries(MusicNoiseCombine avformat avcodec avutil sndfile)
