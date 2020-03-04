@@ -30,7 +30,10 @@ private:
     FILE *audioFile, *outfile;
     AVFrame *decoded_frame;
     AVCodecParserContext *parser;
+    AVFormatContext *format;
     AVPacket *pkt;
+
+    std::string filename;
 
     uint8_t *data;
     uint8_t *inbuf;
@@ -42,13 +45,11 @@ private:
 public:
     std::vector<uint8_t> outBuffer;
 
-    AudioDecoder();
+    explicit AudioDecoder(const std::string& filename);
 
     void decode();
 
     ~AudioDecoder();
-
-    std::string filename;
 };
 
 #endif //MUSICNOISECOMBINE_MAIN_H

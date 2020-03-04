@@ -60,20 +60,32 @@ void AudioDecoder::decodePacket() {
     }
 }
 
-AudioDecoder::AudioDecoder() {
+AudioDecoder::AudioDecoder(const std::string& filename) : filename(filename) {
 
     inbuf = (uint8_t *)malloc((AUDIO_INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE) * sizeof(uint8_t));
     outBuffer = std::vector<uint8_t>();
-
-    filename = "/home/sebltm/OneDrive/Documents/Exeter/BSc_Dissertation/Sounds/fma_small/000/000002.mp3";
 
     pkt = av_packet_alloc();
     if(!pkt) exit(-1);
     av_init_packet(pkt);
 
+    format = avformat_alloc_context();
+    if(!format) {
+        fprintf(stderr, "Could not find a context for AVFormat.\n");
+        exit(-1);
+    }
+
     codec = avcodec_find_decoder(AV_CODEC_ID_MP3);
+    if(!codec) {
+        fprintf(stderr, "Could not find a codec.\n");
+        exit(-1);
+    }
 
     parser = av_parser_init(codec->id);
+    if(!parser) {
+        fprintf(stderr, "Could not find a parser for the codec.\n");
+        exit(-1);
+    }
 
     context = avcodec_alloc_context3(codec);
     if(avcodec_open2(context, codec, nullptr) < 0) {
@@ -147,4 +159,18 @@ void AudioDecoder::decode() {
     }
 
     printf("Finished decoding, size of the output buffer is %zu\n", outBuffer.size());
+}
+
+AVCodec *AudioDecoder::findCodec() {
+    codec = format->audio_codec;
+    if (codec)
+        return codec;
+    codec = avcodec_find_decoder(format->audio_codec_id);
+    if (codec)
+        return codec;
+    AVOutputFormat* fmt = av_guess_format(nullptr, filename.c_str(), nullptr); // const char *mime_type);;
+    codec = fmt ? avcodec_find_decoder(fmt->audio_codec) : nullptr;
+    if (codec)
+        return codec;
+    return nullptr;
 }
