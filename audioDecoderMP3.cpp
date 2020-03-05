@@ -4,22 +4,25 @@
 
 #include "main.h"
 
-int AudioDecoderMP3(const std::string& filename) {
+auto DESIRED_FMT = AV_SAMPLE_FMT_FLT;
 
-    AVCodec *codec;
-    AVCodecContext *context;
-    FILE *audioFile, *outfile;
-    AVFrame *decoded_frame;
-    AVCodecParserContext *parser;
-    AVFormatContext *format;
-    AVPacket *pkt;
+decodedFile AudioDecoderMP3(const std::string& filename, float*& outBuffer, const std::string& outfilePath) {
 
-    uint8_t *data;
+    AVCodec *codec = nullptr;
+    AVCodecContext *context = nullptr;
+    FILE *audioFile = nullptr, *outfile = nullptr;
+    AVFrame *decoded_frame = nullptr;
+    AVCodecParserContext *parser = nullptr;
+    AVFormatContext *format = nullptr;
+    AVPacket *pkt = nullptr;
+    AVStream *stream = nullptr;
+
+    uint8_t *data = nullptr;
     uint8_t inbuf[AUDIO_INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE];
 
-    std::vector<uint8_t> outBuffer = std::vector<uint8_t>();
+    auto *tempBuffer = new std::vector<float>();
 
-    int dataSize, ret;
+    int dataSize = 0, ret = 0, samplerate = 0;
 
     pkt = av_packet_alloc();
     if(!pkt) exit(-1);
@@ -27,11 +30,35 @@ int AudioDecoderMP3(const std::string& filename) {
 
     format = avformat_alloc_context();
     if(!format) {
-        fprintf(stderr, "Could not find a context for AVFormat.\n");
+        fprintf(stderr, "Could not allocate a format context.");
         exit(-1);
     }
 
-    codec = avcodec_find_decoder(AV_CODEC_ID_MP3);
+    if(avformat_open_input(&format, filename.c_str(), nullptr, nullptr) != 0) {
+        fprintf(stderr, "Could not open desired file.");
+        exit(-1);
+    }
+
+    int stream_index = -1;
+    for(int i = 0; i < format->nb_streams; i++) {
+        if(format->streams[i]->codecpar->codec_type == AVMEDIA_TYPE_AUDIO) {
+            stream_index = i;
+            break;
+        }
+    }
+
+    if (stream_index == -1) {
+        fprintf(stderr, "Could not retrieve audio stream from file '%s'\n", filename.c_str());
+        exit(-1);
+    }
+
+    stream = format->streams[stream_index];
+    if(avformat_find_stream_info(format, nullptr) < 0) {
+        fprintf(stderr, "Could not find stream info.\n");
+        exit(-1);
+    }
+
+    codec = avcodec_find_decoder(stream->codecpar->codec_id);
     if(!codec) {
         fprintf(stderr, "Could not find a codec.\n");
         exit(-1);
@@ -55,10 +82,14 @@ int AudioDecoderMP3(const std::string& filename) {
         exit(-1);
     }
 
-    outfile = fopen("/home/sebltm/OneDrive/Documents/Exeter/BSc_Dissertation/outputConv.RAW", "w++");
-    if(!outfile) {
-        fprintf(stderr, "Could not open file.");
-        exit(-1);
+    if(!outfilePath.empty()) {
+        outfile = fopen(outfilePath.c_str(), "w++");
+        if (!outfile) {
+            fprintf(stderr, "Could not open file.");
+            exit(-1);
+        }
+    } else {
+        outfile = nullptr;
     }
 
     data = inbuf;
@@ -67,6 +98,24 @@ int AudioDecoderMP3(const std::string& filename) {
     decoded_frame = av_frame_alloc();
     if(!decoded_frame) {
         fprintf(stderr, "Could not allocate audio frame");
+        exit(-1);
+    }
+
+    samplerate = 44100;
+    SwrContext *swr = swr_alloc_set_opts(
+            nullptr,
+            AV_CH_LAYOUT_MONO,
+            DESIRED_FMT,
+            samplerate,
+            stream->codecpar->channel_layout,
+            AVSampleFormat(stream->codecpar->format),
+            stream->codecpar->sample_rate,
+            0,
+            nullptr);
+
+    swr_init(swr);
+    if(!swr_is_initialized(swr)) {
+        fprintf(stderr, "Resampler has not been properly initialized\n");
         exit(-1);
     }
 
@@ -84,7 +133,7 @@ int AudioDecoderMP3(const std::string& filename) {
         dataSize -= ret;
 
         if(pkt->size) {
-            decode(context, pkt, decoded_frame, &outBuffer, outfile);
+            decode(context, pkt, decoded_frame, swr, tempBuffer, outfile);
         }
 
         if(dataSize < AUDIO_REFILL_THRESH) {
@@ -96,22 +145,36 @@ int AudioDecoderMP3(const std::string& filename) {
         }
     }
 
+    outBuffer = (float *)malloc(tempBuffer->size() * sizeof(float));
+    for(int i = 0; i < tempBuffer->size(); i++) {
+        outBuffer[i] = (*tempBuffer)[i];
+    }
+
+    swr_free(&swr);
     pkt->data = nullptr;
     pkt->size = 0;
-    decode(context, pkt, decoded_frame, &outBuffer, outfile);
+    decode(context, pkt, decoded_frame, swr, tempBuffer, outfile);
+
+    auto file = decodedFile();
+    file.num_samples = tempBuffer->size();
+    file.samplerate = stream->codecpar->sample_rate;
 
     fclose(audioFile);
-    fclose(outfile);
+
+    if(outfile) {
+        fclose(outfile);
+    }
 
     avcodec_free_context(&context);
     av_parser_close(parser);
     av_frame_free(&decoded_frame);
     av_packet_free(&pkt);
 
-    return 0;
+    return file;
 }
 
-void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, std::vector<uint8_t> *buffer, FILE *outfile) {
+void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, SwrContext  *swr, std::vector<float> *buffer, FILE
+*outfile) {
     int ret, dataSize;
 
     /* send the packet with the compressed data to the decoder */
@@ -145,24 +208,23 @@ void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, std::vector<
         }
         dataSize = av_get_bytes_per_sample(context->sample_fmt);
         if (dataSize < 0) {
-            /* This should not occur, checking just for paranoia */
             fprintf(stderr, "Failed to calculate data size\n");
             exit(1);
         }
 
-        fprintf(stdout, "Frame has %d channels and %d samples\n", context->channels, frame->nb_samples);
+        float *resampBuffer = nullptr;
+        av_samples_alloc((uint8_t **) &resampBuffer, frame->linesize, context->channels, frame->nb_samples,
+                         DESIRED_FMT, 0);
+        swr_convert(swr, (uint8_t **) &resampBuffer, frame->nb_samples, (const uint8_t **) frame->data,
+                                                       frame->nb_samples);
 
-        int i, ch;
-
-        for(i = 0; i < frame->nb_samples; i++) {
-            for(ch = 0; ch < context->channels; ch++) {
-                // outBuffer->push_back(*(frame->data[ch] + dataSize * i));
-                fwrite(frame->data[ch] + dataSize * i, 1, dataSize, outfile);
+        int i;
+        if(outfile) {
+            for(i = 0; i < frame->nb_samples; i++) {
+                fwrite(&(resampBuffer[i]), 1, sizeof(float), outfile);
+                buffer->push_back(resampBuffer[i]);
             }
         }
 
-        buffer->insert(buffer->end(),
-                       *frame->data[0],
-                       *(frame->data[context->channels - 1] + dataSize * (frame->nb_samples - 1)));
     }
 }

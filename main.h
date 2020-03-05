@@ -18,14 +18,25 @@ extern "C" {
 #include <libavutil/mem.h>
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
+#include <libswresample/swresample.h>
+#include <libavutil/opt.h>
 }
 
 #define AUDIO_INBUF_SIZE 30720
 #define AUDIO_REFILL_THRESH 4096
 
-int AudioDecoderMP3(const std::string& filename);
-void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, std::vector<uint8_t> *buffer, FILE *outfile);
+struct decodedFile {
+    int samplerate;
+    int num_samples;
+};
 
-int AudioDecoderWAV(const std::string& filename);
+decodedFile AudioDecoderMP3(const std::string& filename, float *& outBuffer, const std::string& outfilePath);
+void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, SwrContext  *swr, std::vector<float> *buffer,
+        FILE *outfile);
+int resample(AVCodecContext *context, AVFrame *frame, uint8_t*& buffer);
+
+decodedFile AudioDecoderWAV(const std::string& filename, float*& outBuffer, const std::string& outfilePath);
+
+float * MonoAndShorten(float *buffer, int channels, int sampleRate, int duration);
 
 #endif //MUSICNOISECOMBINE_MAIN_H
