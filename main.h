@@ -12,6 +12,10 @@
 #include <fstream>
 #include <IO.h>
 #include <sndfile.h>
+#include <filesystem>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <algorithm>
 
 extern "C" {
 #include <libavutil/frame.h>
@@ -30,13 +34,14 @@ struct decodedFile {
     int num_samples;
 };
 
-decodedFile AudioDecoderMP3(const std::string& filename, float *& outBuffer, const std::string& outfilePath);
-void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, SwrContext  *swr, std::vector<float> *buffer,
+decodedFile AudioDecoderMP3(const std::string& filename, double *& outBuffer, const std::string& outfilePath);
+void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, SwrContext  *swr, std::vector<double> *buffer,
         FILE *outfile);
-int resample(AVCodecContext *context, AVFrame *frame, uint8_t*& buffer);
 
-decodedFile AudioDecoderWAV(const std::string& filename, float*& outBuffer, const std::string& outfilePath);
+decodedFile AudioDecoderWAV(const std::string& filename, double*& outBuffer, const std::string& outfilePath);
 
-float * MonoAndShorten(float *buffer, int channels, int sampleRate, int duration);
+double * MonoAndShorten(double *buffer, int channels, int sampleRate, int duration);
+
+std::vector<std::string> SortFiles(const std::string& path, const std::string& extension);
 
 #endif //MUSICNOISECOMBINE_MAIN_H
