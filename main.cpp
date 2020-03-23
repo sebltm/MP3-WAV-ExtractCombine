@@ -1,8 +1,9 @@
+#include <random>
 #include "main.h"
 
 int main(int argc, char** argv) {
 
-    int maxSound = 50, maxDuration = 57330;
+    int maxSound = 1, maxDuration = 57330;
     auto **noises = (double **)malloc(maxSound * sizeof(double *));
 
     std::string pathNoise("/home/sebltm/OneDrive/Documents/Exeter/BSc_Dissertation/Sounds/UrbanSound8K/audio/");
@@ -64,7 +65,7 @@ int main(int argc, char** argv) {
     for(const auto &musicFile : musicFiles) {
         printf("Music num : %d\n", musicNum);
 
-        if(musicNum == 2000) {
+        if(musicNum == 1) {
             free(combinedTracks);
 
             for(int i = 0; i < maxSound; i++) {
@@ -122,7 +123,7 @@ int main(int argc, char** argv) {
 
 }
 
-double * MonoAndShorten(double *buffer, int channels, int sampleRate, int duration) {
+double * MonoAndShorten(double *buffer, int channels, int duration) {
     int i = 0, srSeek = 0, ch = 0;
 
     auto *newbuffer = (double *)malloc(duration * sizeof(double));
@@ -137,17 +138,17 @@ double * MonoAndShorten(double *buffer, int channels, int sampleRate, int durati
     return newbuffer;
 }
 
-std::vector<std::string> SortFiles(const std::string& path, const std::string& extension) {
+std::vector<std::string> SortFiles(const std::string &path, const std::string &extension) {
 
     std::vector<std::string> fileList = std::vector<std::string>();
 
-    for(const auto &p : std::filesystem::recursive_directory_iterator(path)) {
+    for (const auto &p : std::filesystem::recursive_directory_iterator(path)) {
 
-        if(p.path().extension() == extension) {
+        if (p.path().extension() == extension) {
             fileList.push_back(p.path().string());
         }
     }
 
-    std::sort(fileList.begin(), fileList.end());
+    std::shuffle(fileList.begin(), fileList.end(), std::mt19937(std::random_device()()));
     return fileList;
 }
