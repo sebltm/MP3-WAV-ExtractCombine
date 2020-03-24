@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <algorithm>
+#include <random>
 
 extern "C" {
 #include <libavutil/frame.h>
@@ -24,6 +25,7 @@ extern "C" {
 #include <libavformat/avformat.h>
 #include <libswresample/swresample.h>
 #include <libavutil/opt.h>
+#include <samplerate.h>
 }
 
 #define AUDIO_INBUF_SIZE 30720
@@ -32,15 +34,18 @@ extern "C" {
 struct decodedFile {
     int samplerate;
     int num_samples;
+    int channels;
 };
 
 decodedFile AudioDecoderMP3(const std::string& filename, double *& outBuffer, const std::string& outfilePath);
 void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, SwrContext  *swr, std::vector<double> *buffer,
         FILE *outfile);
 
-decodedFile AudioDecoderWAV(const std::string& filename, double*& outBuffer, const std::string& outfilePath);
+decodedFile AudioDecoderWAV(const std::string &filename, double *&outBuffer, const std::string &outfilePath);
 
-double * MonoAndShorten(double *buffer, int channels, int sampleRate, int duration);
+void resample(SRC_DATA *srcData, int channels);
+
+double *MonoAndShorten(double *buffer, int channels, int duration);
 
 std::vector<std::string> SortFiles(const std::string& path, const std::string& extension);
 

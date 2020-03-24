@@ -117,8 +117,8 @@ decodedFile AudioDecoderMP3(const std::string &filename, double *&outBuffer, con
         exit(-1);
     }
 
-    std::cout << "Noise file is : " << outfilePath << "." << std::endl;
     if (!outfilePath.empty()) {
+        std::cout << "Outut music file is : " << outfilePath << "." << std::endl;
         outfile = fopen(outfilePath.c_str(), "w++");
         if (!outfile) {
             std::cerr << "Could not open file : " << outfilePath << ", " << strerror(errno) << std::endl;
@@ -201,7 +201,7 @@ decodedFile AudioDecoderMP3(const std::string &filename, double *&outBuffer, con
 
     auto file = decodedFile();
     file.num_samples = tempBuffer->size();
-    file.samplerate = stream->codecpar->sample_rate;
+    file.samplerate = samplerate;
 
     fclose(audioFile);
 
@@ -211,7 +211,6 @@ decodedFile AudioDecoderMP3(const std::string &filename, double *&outBuffer, con
 
     delete(tempBuffer);
     avformat_close_input(&format);
-    avformat_free_context(format);
     avcodec_free_context(&context);
     av_parser_close(parser);
     av_frame_free(&decoded_frame);
@@ -264,6 +263,11 @@ void decode(AVCodecContext *context, AVPacket *pkt, AVFrame *frame, SwrContext *
                          DESIRED_FMT, 0);
         swr_convert(swr, (uint8_t **) &resampBuffer, frame->nb_samples, (const uint8_t **) frame->data,
                     frame->nb_samples);
+
+        if (!resampBuffer) {
+            std::cout << "Resamp buffer is null" << std::endl;
+            exit(-1);
+        }
 
         int i = 0;
         for (i = 0; i < frame->nb_samples; i++) {
